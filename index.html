@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Möbius Light — Thingking Studio</title>
+<meta name="description" content="A large-scale interactive light installation premiering at Lumenocity Cape Town 2025.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #000000;
+    --off-black: #0a0a0a;
+    --grey-900: #111111;
+    --grey-800: #1a1a1a;
+    --grey-600: #444444;
+    --grey-400: #888888;
+    --grey-200: #bbbbbb;
+    --white: #ffffff;
+    --accent: #e8e0d0;
+    --font-display: 'Bebas Neue', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* ── CURSOR ── */
+  .cursor {
+    position: fixed;
+    width: 12px; height: 12px;
+    background: var(--white);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: width 0.3s ease, height 0.3s ease;
+    mix-blend-mode: difference;
+  }
+  .cursor-ring {
+    position: fixed;
+    width: 40px; height: 40px;
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: width 0.15s ease, height 0.15s ease, border-color 0.15s ease;
+    mix-blend-mode: difference;
+  }
+  body:has(a:hover) .cursor { width: 8px; height: 8px; }
+  body:has(a:hover) .cursor-ring { width: 60px; height: 60px; border-color: rgba(255,255,255,0.6); }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 28px 48px;
+    mix-blend-mode: difference;
+  }
+  .nav-logo {
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 0.12em;
+    color: var(--white);
+    text-decoration: none;
+  }
+  .nav-right {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--white);
+    opacity: 0.5;
+  }
+
+  /* ── HERO ── */
+  #hero {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 100px 48px 64px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 80px 80px;
+    z-index: 1;
+    animation: gridShift 20s linear infinite;
+  }
+  @keyframes gridShift {
+    from { transform: translate(0,0); }
+    to   { transform: translate(80px, 80px); }
+  }
+
+  #canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+  }
+
+  .hero-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,0,0.65) 100%);
+    z-index: 3;
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 4;
+    text-align: center;
+  }
+
+  .hero-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--grey-400);
+    margin-bottom: 28px;
+    opacity: 0;
+    animation: fadeUp 1s ease forwards 0.2s;
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(52px, 9vw, 130px);
+    line-height: 0.88;
+    letter-spacing: 0.01em;
+    color: var(--white);
+    opacity: 0;
+    animation: fadeUp 1s ease forwards 0.4s;
+    mix-blend-mode: screen;
+  }
+
+  .hero-bottom {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 3rem;
+    margin-top: 2.5rem;
+    z-index: 4;
+    position: relative;
+    opacity: 0;
+    animation: fadeUp 1s ease forwards 0.7s;
+  }
+
+  .hero-tagline {
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 300;
+    color: var(--grey-200);
+    max-width: 320px;
+    line-height: 1.5;
+    text-align: left;
+  }
+
+  .hero-meta {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--grey-400);
+    line-height: 1.8;
+    border-left: 1px solid var(--grey-800);
+    padding-left: 3rem;
+  }
+
+  .scroll-cue {
+    position: absolute;
+    bottom: 32px;
+    right: 48px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--grey-600);
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: breathe 3s ease-in-out infinite;
+  }
+  .scroll-cue::after {
+    content: '';
+    width: 40px; height: 1px;
+    background: var(--grey-600);
+  }
+  @keyframes breathe { 0%,100%{opacity:0.3} 50%{opacity:1} }
+  @keyframes fadeUp {
+    from { opacity:0; transform:translateY(24px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  /* ── SECTIONS ── */
+  section { border-top: 1px solid var(--grey-800); }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 48px;
+  }
+
+  .section-wrap { padding: 80px 0; }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 64px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--grey-800);
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 56px;
+    letter-spacing: 0.04em;
+    line-height: 1;
+  }
+
+  .section-index {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--grey-600);
+  }
+
+  /* ── CONCEPT ── */
+  .concept-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 80px;
+    align-items: start;
+  }
+
+  .concept-heading {
+    font-family: var(--font-display);
+    font-size: clamp(40px, 5vw, 72px);
+    line-height: 0.95;
+    letter-spacing: 0.04em;
+    color: var(--white);
+  }
+
+  .concept-subhead {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--grey-400);
+    margin-top: 24px;
+  }
+
+  .concept-body {
+    font-size: 15px;
+    font-weight: 300;
+    line-height: 1.8;
+    color: var(--grey-200);
+  }
+  .concept-body p + p { margin-top: 20px; }
+
+  blockquote {
+    border-left: 1px solid var(--grey-800);
+    padding: 4px 0 4px 24px;
+    margin: 28px 0;
+    font-style: italic;
+    color: var(--grey-400);
+    font-size: 14px;
+    line-height: 1.75;
+  }
+  blockquote cite {
+    display: block;
+    margin-top: 10px;
+    font-style: normal;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--grey-600);
+  }
+
+  /* ── SPECS ── */
+  #form { background: var(--off-black); }
+
+  .specs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+  }
+
+  .specs-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--grey-600);
+    margin-bottom: 24px;
+  }
+
+  .spec-table { width: 100%; border-collapse: collapse; }
+  .spec-table tr { border-bottom: 1px solid var(--grey-800); }
+  .spec-table td { padding: 14px 0; font-size: 14px; }
+  .spec-table td:first-child {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--grey-400);
+    width: 50%;
+  }
+  .spec-table td:last-child {
+    text-align: right;
+    font-weight: 400;
+    color: var(--white);
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--grey-800);
+    font-size: 14px;
+    gap: 16px;
+  }
+  .control-num {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--grey-600);
+    width: 20px;
+    flex-shrink: 0;
+  }
+
+  /* ── GALLERY ── */
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 2px;
+  }
+  .g-item {
+    overflow: hidden;
+    background: var(--grey-900);
+    position: relative;
+  }
+  .g-item.tall { grid-row: span 2; }
+  .g-item img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+    transition: transform 0.8s cubic-bezier(0.25,0.46,0.45,0.94);
+  }
+  .g-item:hover img { transform: scale(1.04); }
+  .g-placeholder {
+    min-height: 260px; width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 8px;
+    color: var(--grey-800);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    border: 1px dashed var(--grey-900);
+  }
+  .g-placeholder code { color: var(--grey-600); }
+
+  /* ── VIDEO ── */
+  .video-wrap {
+    width: 100%; aspect-ratio: 16/9;
+    background: var(--off-black);
+    overflow: hidden; position: relative;
+  }
+  .video-wrap video,
+  .video-wrap iframe { width:100%; height:100%; object-fit:cover; border:none; display:block; }
+  .video-placeholder {
+    width:100%; height:100%;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap:12px;
+    color: var(--grey-800);
+    font-family: var(--font-mono);
+    font-size:10px;
+    letter-spacing:0.15em;
+    text-transform:uppercase;
+    border: 1px dashed var(--grey-900);
+  }
+  .video-placeholder code { color: var(--grey-600); font-size: 11px; }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--grey-800);
+    padding: 40px 0;
+  }
+  .footer-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .footer-left {
+    font-family: var(--font-display);
+    font-size: 18px;
+    letter-spacing: 0.1em;
+    line-height: 1.6;
+    color: var(--white);
+  }
+  .footer-left span {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--grey-600);
+    font-weight: 300;
+  }
+  .footer-right {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--grey-600);
+    text-align: right;
+    line-height: 1.8;
+  }
+  .footer-link {
+    color: var(--grey-400);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .footer-link:hover { color: var(--white); }
+
+  /* ── REVEAL ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    nav, #hero, .container { padding-left: 24px; padding-right: 24px; }
+    #hero { padding-bottom: 48px; }
+    .concept-grid, .specs-grid { grid-template-columns: 1fr; gap: 40px; }
+    .gallery-grid { grid-template-columns: 1fr; grid-template-rows: auto; }
+    .g-item.tall { grid-row: span 1; }
+    .footer-inner { flex-direction: column; gap: 24px; }
+    .footer-right { text-align: left; }
+    .scroll-cue { right: 24px; }
+    .section-title { font-size: 40px; }
+    .hero-bottom { flex-direction: column; gap: 16px; align-items: center; }
+    .hero-meta { border-left: none; padding-left: 0; border-top: 1px solid var(--grey-800); padding-top: 1rem; text-align: center; }
+    .hero-tagline { text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- NAV -->
+<nav>
+  <a href="https://thingking.co.za" class="nav-logo">Thingking Studio</a>
+  <span class="nav-right">Lumenocity 2026</span>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-bg-grid"></div>
+  <canvas id="canvas"></canvas>
+  <div class="hero-vignette"></div>
+  <div class="hero-content">
+    <p class="hero-label">Interactive Light Installation</p>
+    <h1 class="hero-title">MÖBIUS<br>LIGHT</h1>
+    <div class="hero-bottom">
+      <p class="hero-tagline">One surface. No beginning. No end. A 4-metre kinetic light ring that embodies Möbius topology.</p>
+      <div class="hero-meta">
+        <div>Cape Town</div>
+        <div>Lumenocity 2026</div>
+        <div>Thingking Studio</div>
+      </div>
+    </div>
+  </div>
+  <div class="scroll-cue">Scroll</div>
+</section>
+
+<!-- CONCEPT -->
+<section id="concept">
+  <div class="container">
+    <div class="section-wrap">
+      <div class="section-header reveal">
+        <h2 class="section-title">CONCEPT</h2>
+        <span class="section-index">01 / 04</span>
+      </div>
+      <div class="concept-grid">
+        <div class="reveal">
+          <h3 class="concept-heading">ONE<br>SURFACE.<br>NO END.</h3>
+          <p class="concept-subhead">Interactive · Light · Steel · 2025</p>
+        </div>
+        <div class="concept-body reveal">
+          <p>Möbius Light takes its form from one of geometry's most compelling paradoxes — the Möbius strip, a surface with only one side and one continuous edge. Fifty pairs of diffused RGB lightbars are mounted on a four-metre steel ring, each incrementally rotated by 3.6 degrees. Over the full circumference the accumulated twist is exactly 180 degrees — the precise amount required to produce Möbius topology.</p>
+          <p>The result is a structure that appears to transform as you move around it. What reads as vertical on one side has become horizontal by the time you complete the circle. The installation does not represent this quality — it embodies it.</p>
+          <blockquote>
+            "Light and darkness are not so much two opposite parts as two opposite poles of a uniform activity we call light."
+            <cite>— Goethe's natural science tradition</cite>
+          </blockquote>
+          <p>Four analogue potentiometers give visitors direct, haptic control over the living quality of the light — its hue, tempo, behaviour, and memory. There is no screen, no app, no interface to learn. Only physical turning, and immediate transformation.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FORM -->
+<section id="form">
+  <div class="container">
+    <div class="section-wrap">
+      <div class="section-header reveal">
+        <h2 class="section-title">THE FORM</h2>
+        <span class="section-index">02 / 04</span>
+      </div>
+      <div class="specs-grid">
+        <div class="reveal">
+          <p class="specs-label">Controls</p>
+          <div class="control-row"><span class="control-num">I</span> Colour</div>
+          <div class="control-row"><span class="control-num">II</span> Speed</div>
+          <div class="control-row"><span class="control-num">III</span> Animation Style</div>
+          <div class="control-row"><span class="control-num">IV</span> Light Trail Length</div>
+        </div>
+        <div class="reveal">
+          <p class="specs-label">Materials &amp; Scale</p>
+          <table class="spec-table">
+            <tr><td>Ring diameter</td><td>4 metres</td></tr>
+            <tr><td>Lightbar pairs</td><td>50 × back-to-back</td></tr>
+            <tr><td>LED type</td><td>Diffused RGB addressable</td></tr>
+            <tr><td>Twist per segment</td><td>3.6°</td></tr>
+            <tr><td>Total twist</td><td>180°</td></tr>
+            <tr><td>Structure</td><td>Steel ring</td></tr>
+            <tr><td>Year</td><td>2025</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GALLERY -->
+<section id="gallery">
+  <div class="container">
+    <div class="section-wrap">
+      <div class="section-header reveal">
+        <h2 class="section-title">INSTALLATION</h2>
+        <span class="section-index">03 / 04</span>
+      </div>
+      <div class="gallery-grid reveal">
+        <div class="g-item tall">
+          <!-- <img src="images/main.jpg" alt="Möbius Light installation"> -->
+          <div class="g-placeholder"><span>Primary image</span><code>images/main.jpg</code></div>
+        </div>
+        <div class="g-item">
+          <!-- <img src="images/detail-1.jpg" alt="Detail"> -->
+          <div class="g-placeholder"><span>Detail</span><code>images/detail-1.jpg</code></div>
+        </div>
+        <div class="g-item">
+          <!-- <img src="images/detail-2.jpg" alt="Detail"> -->
+          <div class="g-placeholder"><span>Detail</span><code>images/detail-2.jpg</code></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VIDEO -->
+<section id="film">
+  <div class="container">
+    <div class="section-wrap">
+      <div class="section-header reveal">
+        <h2 class="section-title">FILM</h2>
+        <span class="section-index">04 / 04</span>
+      </div>
+      <div class="video-wrap reveal">
+        <!-- Option A – self-hosted: <video src="video/mobius.mp4" autoplay muted loop playsinline></video> -->
+        <!-- Option B – Vimeo:      <iframe src="https://player.vimeo.com/video/YOUR_ID?autoplay=1&muted=1&loop=1&background=1" allow="autoplay; fullscreen"></iframe> -->
+        <!-- Option C – YouTube:    <iframe src="https://www.youtube.com/embed/YOUR_ID?autoplay=1&mute=1&loop=1&playlist=YOUR_ID" allow="autoplay; encrypted-media"></iframe> -->
+        <div class="video-placeholder">
+          <span>Video embed</span>
+          <code>&lt;video&gt; or &lt;iframe&gt; — see comments in source</code>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">
+        THINGKING STUDIO
+        <span>Cape Town &nbsp;·&nbsp; Interactive Design &amp; Experiential Fabrication</span>
+      </div>
+      <div class="footer-right">
+        <div><a class="footer-link" href="https://thingking.co.za">thingking.co.za</a></div>
+        <div>Lumenocity Cape Town 2026</div>
+        <div style="margin-top:8px; color: var(--grey-800);">© 2026 Thingking Studio</div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ── CURSOR ─────────────────────────────────────────────── */
+const cursor = document.getElementById('cursor');
+const ring   = document.getElementById('cursorRing');
+let mx = 0, my = 0, rx = 0, ry = 0;
+
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  cursor.style.left = mx + 'px';
+  cursor.style.top  = my + 'px';
+});
+(function animateRing() {
+  rx += (mx - rx) * 0.12;
+  ry += (my - ry) * 0.12;
+  ring.style.left = rx + 'px';
+  ring.style.top  = ry + 'px';
+  requestAnimationFrame(animateRing);
+})();
+
+/* ── MÖBIUS CANVAS ──────────────────────────────────────── */
+(function () {
+  const canvas = document.getElementById('canvas');
+  const ctx    = canvas.getContext('2d');
+  const N = 50;
+  let W, H, cx, cy, R, t = 0;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    cx = W / 2;
+    cy = H / 2 - H * 0.02;
+    R  = Math.min(W, H) * 0.30;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    const bars = [];
+    for (let i = 0; i < N; i++) {
+      const a     = (i / N) * Math.PI * 2;
+      const twist = (i / N) * Math.PI;
+      bars.push({
+        i, a, twist,
+        px: cx + R * Math.cos(a),
+        py: cy + R * Math.sin(a) * 0.36,
+        depth: Math.sin(a)
+      });
+    }
+    bars.sort((a, b) => a.depth - b.depth);
+
+    for (const { i, a, twist, px, py, depth } of bars) {
+      const alpha = 0.3 + 0.7 * ((depth + 1) / 2);
+      const bW    = 3;
+      const bH    = 28 + 12 * Math.abs(Math.cos(twist));
+      const hue   = (i / N * 360 + t * 30) % 360;
+      const lum   = 50 + 18 * Math.sin(i / N * Math.PI * 3 + t * 1.4);
+
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.translate(px, py);
+      ctx.rotate(a + twist);
+
+      const grad = ctx.createLinearGradient(0, -bH/2, 0, bH/2);
+      grad.addColorStop(0,   `hsla(${hue}, 90%, ${lum+12}%, 0)`);
+      grad.addColorStop(0.3, `hsla(${hue}, 90%, ${lum}%, 1)`);
+      grad.addColorStop(0.7, `hsla(${hue}, 90%, ${lum}%, 1)`);
+      grad.addColorStop(1,   `hsla(${hue}, 90%, ${lum+12}%, 0)`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(-bW/2, -bH/2, bW, bH);
+
+      ctx.globalAlpha = alpha * 0.15;
+      ctx.fillStyle   = `hsl(${hue}, 90%, ${lum}%)`;
+      ctx.fillRect(-bW*3, -bH/2, bW*6, bH);
+
+      ctx.restore();
+    }
+
+    t += 0.007;
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ── SCROLL REVEAL ──────────────────────────────────────── */
+(function () {
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+})();
+</script>
+</body>
+</html>
