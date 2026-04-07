@@ -665,7 +665,7 @@ document.addEventListener('mousemove', e => {
     H = canvas.height = window.innerHeight;
     cx = W / 2;
     cy = H / 2 - H * 0.02;
-    R  = Math.min(W, H) * 0.30;
+    R  = Math.min(W, H) * 0.38;
   }
   window.addEventListener('resize', resize);
   resize();
@@ -688,8 +688,8 @@ document.addEventListener('mousemove', e => {
 
     for (const { i, a, twist, px, py, depth } of bars) {
       const alpha = 0.3 + 0.7 * ((depth + 1) / 2);
-      const bW    = 3;
-      const bH    = 28 + 12 * Math.abs(Math.cos(twist));
+      const bW    = 4;
+      const bH    = 34 + 14 * Math.abs(Math.cos(twist));
       const hue   = (i / N * 360 + t * 30) % 360;
       const lum   = 50 + 18 * Math.sin(i / N * Math.PI * 3 + t * 1.4);
 
