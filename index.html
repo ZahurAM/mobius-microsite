@@ -212,6 +212,26 @@
     width: 40px; height: 1px;
     background: var(--grey-600);
   }
+  .experience-btn {
+    position: absolute;
+    bottom: 28px;
+    left: 48px;
+    z-index: 5;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--grey-400);
+    text-decoration: none;
+    border: 1px solid var(--grey-800);
+    padding: 12px 20px;
+    border-radius: 2px;
+    opacity: 0;
+    animation: fadeUp 1s ease forwards 1s;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .experience-btn:hover { color: var(--white); border-color: var(--grey-600); }
+
   @keyframes breathe { 0%,100%{opacity:0.3} 50%{opacity:1} }
   @keyframes fadeUp {
     from { opacity:0; transform:translateY(24px); }
@@ -508,6 +528,7 @@
     </div>
   </div>
   <div class="scroll-cue">Scroll</div>
+  <a class="experience-btn" href="experience.html">Experience →</a>
 </section>
 
 <!-- CONCEPT -->
