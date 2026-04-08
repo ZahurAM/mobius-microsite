@@ -21,15 +21,11 @@
     overflow: hidden;
     touch-action: none;
   }
-
-  /* CANVAS */
   #canvas {
     position: fixed;
     inset: 0; width: 100%; height: 100%;
     display: block;
   }
-
-  /* NAV */
   header {
     position: fixed;
     top: 0; left: 0; right: 0;
@@ -52,12 +48,12 @@
     font-size: 10px;
     letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: #666;
+    color: #555;
     text-decoration: none;
     pointer-events: all;
   }
 
-  /* KNOB PANEL */
+  /* PANEL */
   #panel {
     position: fixed;
     bottom: 0; left: 0; right: 0;
@@ -65,14 +61,12 @@
     padding: 0 0 env(safe-area-inset-bottom, 16px);
     background: linear-gradient(to top, rgba(0,0,0,0.98) 80%, transparent);
   }
-
   .knobs-row {
     display: flex;
     justify-content: space-around;
     align-items: flex-end;
     padding: 12px 16px 28px;
   }
-
   .knob-wrap {
     display: flex;
     flex-direction: column;
@@ -80,15 +74,12 @@
     gap: 8px;
     flex: 1;
   }
-
   .knob-canvas {
     display: block;
     touch-action: none;
     cursor: grab;
   }
   .knob-canvas:active { cursor: grabbing; }
-
-  /* Roman numeral label */
   .knob-label {
     font-family: 'DM Mono', monospace;
     font-size: 9px;
@@ -113,7 +104,6 @@
   #share-btn:active { border-color: #444; }
   #share-btn svg { width: 15px; height: 15px; stroke: #555; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
-  /* TOAST */
   #toast {
     position: fixed;
     top: 72px; left: 50%;
@@ -134,7 +124,6 @@
   }
   #toast.show { opacity: 1; }
 
-  /* TAP BURST */
   .burst {
     position: fixed;
     width: 60px; height: 60px;
@@ -190,19 +179,21 @@
 <script>
 /* ═══════════════════════
    STATE
+   I   → colour:  0–360  full wash hue
+   II  → chase:   0–1    trail length (0=short, 1=long)
+   III → speed:   0–1
+   IV  → size:    0–1    bar scale
 ═══════════════════════ */
 const state = {
-  hue:    0,       // I   0–360
-  speed:  0.5,     // II  0–1
-  style:  0,       // III 0–1 → maps to 4 modes
-  trail:  0.5,     // IV  0–1
+  colour: 0,
+  chase:  0.4,
+  speed:  0.4,
+  size:   0.5,
   tiltX:  0,
   tiltY:  0,
   bursts: [],
   t:      0,
 };
-
-const STYLES = ['chase', 'pulse', 'breathe', 'scatter'];
 
 /* ═══════════════════════
    RING CANVAS
@@ -223,24 +214,18 @@ function resize() {
 window.addEventListener('resize', resize);
 setTimeout(resize, 100);
 
-function styleMod(i, t, styleVal) {
-  const s = STYLES[Math.floor(styleVal * 3.99)];
-  switch (s) {
-    case 'chase':   return Math.sin((i / N) * Math.PI * 2 - t * 3) * 0.5 + 0.5;
-    case 'pulse':   return (Math.sin(t * 2) * 0.5 + 0.5) * 0.4 + (Math.sin((i / N) * Math.PI * 4 + t) * 0.5 + 0.5) * 0.6;
-    case 'breathe': return Math.sin(t * 0.8 + (i / N) * Math.PI) * 0.4 + 0.6;
-    case 'scatter': return Math.sin(i * 127.1 + t * 1.5) * 0.5 + 0.5;
-    default:        return 1;
-  }
-}
-
 function drawRing() {
   rctx.clearRect(0, 0, W, H);
 
-  const speedF = 0.2 + state.speed * 1.6;
-  const trailF = 0.4 + state.trail * 1.2;
+  const speedF  = 0.15 + state.speed * 2.0;
+  const sizeF   = 0.4  + state.size  * 1.4;
+  const trailF  = 0.04 + state.chase * 0.96; // fraction of ring lit in chase
+
   const ox = state.tiltX * 28;
   const oy = state.tiltY * 12;
+
+  // Chase head position: 0..1 around the ring
+  const chaseHead = (state.t * speedF * 0.15) % 1;
 
   const bars = [];
   for (let i = 0; i < N; i++) {
@@ -256,38 +241,56 @@ function drawRing() {
   bars.sort((a, b) => a.depth - b.depth);
 
   for (const { i, a, twist, px, py, depth } of bars) {
-    const alpha = 0.25 + 0.75 * ((depth + 1) / 2);
-    const mod   = styleMod(i, state.t, state.style);
-    const bW    = 2.5 + trailF * 1.5;
-    const bH    = (24 + 12 * Math.abs(Math.cos(twist))) * (0.4 + mod * 0.6);
-    const hue   = (state.hue + i / N * 360 + state.t * 30 * speedF) % 360;
-    const lum   = 44 + 26 * mod;
+    const depthAlpha = 0.2 + 0.8 * ((depth + 1) / 2);
+
+    // Chase: how far is this bar behind the head (0 = at head, 1 = opposite)
+    const barPos  = i / N;
+    let   delta   = chaseHead - barPos;
+    // Wrap to 0..1 range behind the head
+    if (delta < 0) delta += 1;
+    // delta=0 means at head, delta=1 means just ahead (full wrap)
+    // Brightness falls off from head backwards over trailF fraction
+    const inTrail = delta < trailF;
+    const brightness = inTrail ? (1 - delta / trailF) : 0;
+
+    if (brightness < 0.02) continue; // skip invisible bars
+
+    const bW = (2.5 + sizeF * 2) * brightness;
+    const bH = (20  + sizeF * 22 * Math.abs(Math.cos(twist))) * (0.3 + brightness * 0.7);
+
+    // Full colour wash — all bars same hue, just brightness varies
+    const hue = state.colour;
+    const lum = 35 + 35 * brightness;
+    const sat = 80 + 15 * brightness;
 
     rctx.save();
-    rctx.globalAlpha = alpha * (0.35 + mod * 0.65);
+    rctx.globalAlpha = depthAlpha * brightness;
     rctx.translate(px, py);
     rctx.rotate(a + twist);
 
+    // Core bar
     const g = rctx.createLinearGradient(0, -bH/2, 0, bH/2);
-    g.addColorStop(0,   `hsla(${hue},90%,${lum+10}%,0)`);
-    g.addColorStop(0.3, `hsla(${hue},90%,${lum}%,1)`);
-    g.addColorStop(0.7, `hsla(${hue},90%,${lum}%,1)`);
-    g.addColorStop(1,   `hsla(${hue},90%,${lum+10}%,0)`);
+    g.addColorStop(0,   `hsla(${hue},${sat}%,${lum+12}%,0)`);
+    g.addColorStop(0.3, `hsla(${hue},${sat}%,${lum}%,1)`);
+    g.addColorStop(0.7, `hsla(${hue},${sat}%,${lum}%,1)`);
+    g.addColorStop(1,   `hsla(${hue},${sat}%,${lum+12}%,0)`);
     rctx.fillStyle = g;
     rctx.fillRect(-bW/2, -bH/2, bW, bH);
 
-    rctx.globalAlpha = alpha * mod * 0.1 * trailF;
-    rctx.fillStyle = `hsl(${hue},90%,${lum}%)`;
-    rctx.fillRect(-bW*4, -bH/2, bW*8, bH);
+    // Bloom glow — brighter at head
+    rctx.globalAlpha = depthAlpha * brightness * brightness * 0.25;
+    rctx.fillStyle = `hsl(${hue},${sat}%,${lum}%)`;
+    rctx.fillRect(-bW*5, -bH/2, bW*10, bH);
+
     rctx.restore();
   }
 
-  // Tap bursts
+  // Touch bursts
   state.bursts = state.bursts.filter(b => b.life > 0);
   for (const b of state.bursts) {
     rctx.save();
     rctx.globalAlpha = b.life * 0.5;
-    rctx.strokeStyle = `hsl(${b.hue},80%,60%)`;
+    rctx.strokeStyle = `hsl(${b.hue},80%,55%)`;
     rctx.lineWidth = 1;
     rctx.beginPath();
     rctx.arc(b.x, b.y, (1 - b.life) * 90, 0, Math.PI * 2);
@@ -296,149 +299,135 @@ function drawRing() {
     b.life -= 0.035;
   }
 
-  state.t += 0.007 * speedF;
+  state.t += 0.016;
   requestAnimationFrame(drawRing);
 }
 drawRing();
 
 /* ═══════════════════════
-   POTENTIOMETER KNOBS
+   KNOBS
 ═══════════════════════ */
 const KNOB_CONFIGS = [
-  { key: 'hue',   min: 0,   max: 360, init: 0,   continuous: true  },
-  { key: 'speed', min: 0,   max: 1,   init: 0.5, continuous: false },
-  { key: 'style', min: 0,   max: 1,   init: 0,   continuous: false },
-  { key: 'trail', min: 0,   max: 1,   init: 0.5, continuous: false },
+  { stateKey: 'colour', min: 0,   max: 360, init: 0   },
+  { stateKey: 'chase',  min: 0,   max: 1,   init: 0.4 },
+  { stateKey: 'speed',  min: 0,   max: 1,   init: 0.4 },
+  { stateKey: 'size',   min: 0,   max: 1,   init: 0.5 },
 ];
 
-// Knob draw: angle range 210° start to 330° (300° sweep)
 const K_START = (210 * Math.PI) / 180;
-const K_END   = (330 * Math.PI) / 180; // wraps past 0
 const K_SWEEP = (300 * Math.PI) / 180;
 
-function normToAngle(n) {
-  // n = 0..1 → angle from K_START sweeping 300°
-  return K_START + n * K_SWEEP;
-}
+function normToAngle(n) { return K_START + n * K_SWEEP; }
 
-function drawKnob(kCanvas, normVal, isActive, hue) {
+function drawKnob(kCanvas, normVal, isActive) {
   const kctx = kCanvas.getContext('2d');
-  const size = kCanvas.width;
-  const cx   = size / 2;
-  const cy   = size / 2;
-  const r    = size * 0.36;
-  const r2   = size * 0.28;
+  const sz   = kCanvas.width;
+  const kx   = sz / 2, ky = sz / 2;
+  const rOuter = sz * 0.36;
+  const rInner = sz * 0.28;
 
-  kctx.clearRect(0, 0, size, size);
+  kctx.clearRect(0, 0, sz, sz);
 
-  // Track arc (bg)
+  // Track bg
   kctx.beginPath();
-  kctx.arc(cx, cy, r, K_START, K_START + K_SWEEP);
-  kctx.strokeStyle = '#1a1a1a';
+  kctx.arc(kx, ky, rOuter, K_START, K_START + K_SWEEP);
+  kctx.strokeStyle = '#1c1c1c';
   kctx.lineWidth = 2.5;
   kctx.lineCap = 'round';
   kctx.stroke();
 
-  // Track arc (fill)
-  const fillEnd = normToAngle(normVal);
-  if (normVal > 0) {
+  // Track fill
+  if (normVal > 0.01) {
+    const fillHue = state.colour;
     kctx.beginPath();
-    kctx.arc(cx, cy, r, K_START, fillEnd);
+    kctx.arc(kx, ky, rOuter, K_START, normToAngle(normVal));
     kctx.strokeStyle = isActive
-      ? `hsl(${hue}, 85%, 60%)`
-      : '#555';
+      ? `hsl(${fillHue}, 85%, 58%)`
+      : `hsl(${fillHue}, 50%, 35%)`;
     kctx.lineWidth = 2.5;
     kctx.lineCap = 'round';
     kctx.stroke();
   }
 
-  // Body circle
+  // Body
   kctx.beginPath();
-  kctx.arc(cx, cy, r2, 0, Math.PI * 2);
-  kctx.fillStyle = '#111';
+  kctx.arc(kx, ky, rInner, 0, Math.PI * 2);
+  kctx.fillStyle = '#0e0e0e';
   kctx.fill();
-  kctx.strokeStyle = isActive ? `hsl(${hue}, 60%, 25%)` : '#222';
+  kctx.strokeStyle = isActive ? `hsl(${state.colour}, 40%, 22%)` : '#1a1a1a';
   kctx.lineWidth = 1;
   kctx.stroke();
 
   // Indicator dot
   const angle = normToAngle(normVal);
-  const dx = cx + r2 * 0.65 * Math.cos(angle);
-  const dy = cy + r2 * 0.65 * Math.sin(angle);
+  const dx = kx + rInner * 0.62 * Math.cos(angle);
+  const dy = ky + rInner * 0.62 * Math.sin(angle);
   kctx.beginPath();
   kctx.arc(dx, dy, 2.5, 0, Math.PI * 2);
-  kctx.fillStyle = isActive ? `hsl(${hue}, 90%, 65%)` : '#666';
+  kctx.fillStyle = isActive ? `hsl(${state.colour}, 90%, 62%)` : '#555';
   kctx.fill();
 }
 
-// Init + interaction
 const knobEls = [0,1,2,3].map(i => document.getElementById(`knob-${i}`));
 const knobState = KNOB_CONFIGS.map(c => ({
-  norm: (c.init - c.min) / (c.max - c.min),
+  norm:   (c.init - c.min) / (c.max - c.min),
   active: false,
-  lastY: 0,
+  lastY:  0,
 }));
-
-function getHue() {
-  return (state.hue + state.t * 30) % 360;
-}
-
-function redrawAllKnobs() {
-  const hue = getHue();
-  knobEls.forEach((el, i) => {
-    drawKnob(el, knobState[i].norm, knobState[i].active, hue);
-  });
-}
-
-// Continuously redraw knobs so colour tracks the ring
-setInterval(redrawAllKnobs, 50);
-redrawAllKnobs();
 
 function applyKnob(i) {
   const cfg = KNOB_CONFIGS[i];
-  const val = cfg.min + knobState[i].norm * (cfg.max - cfg.min);
-  state[cfg.key] = val;
+  state[cfg.stateKey] = cfg.min + knobState[i].norm * (cfg.max - cfg.min);
 }
 
-function onKnobTouchStart(e, i) {
-  e.preventDefault();
-  knobState[i].active = true;
-  knobState[i].lastY = e.touches[0].clientY;
-  redrawAllKnobs();
+function redrawAllKnobs() {
+  knobEls.forEach((el, i) => drawKnob(el, knobState[i].norm, knobState[i].active));
 }
 
-function onKnobTouchMove(e, i) {
-  e.preventDefault();
-  const dy   = knobState[i].lastY - e.touches[0].clientY; // up = positive
-  knobState[i].lastY = e.touches[0].clientY;
-  const delta = dy / 120; // full sweep = 120px drag
-  knobState[i].norm = Math.max(0, Math.min(1, knobState[i].norm + delta));
-  applyKnob(i);
-  redrawAllKnobs();
-}
-
-function onKnobTouchEnd(e, i) {
-  knobState[i].active = false;
-  redrawAllKnobs();
-}
+// Redraw knobs at 30fps so colour wash reflects on knob arcs
+setInterval(redrawAllKnobs, 33);
+redrawAllKnobs();
 
 knobEls.forEach((el, i) => {
-  el.addEventListener('touchstart',  e => onKnobTouchStart(e, i), { passive: false });
-  el.addEventListener('touchmove',   e => onKnobTouchMove(e, i),  { passive: false });
-  el.addEventListener('touchend',    e => onKnobTouchEnd(e, i),   { passive: false });
-  el.addEventListener('touchcancel', e => onKnobTouchEnd(e, i),   { passive: false });
-  // Mouse fallback for desktop testing
+  // Touch
+  el.addEventListener('touchstart', e => {
+    e.preventDefault();
+    knobState[i].active = true;
+    knobState[i].lastY  = e.touches[0].clientY;
+    redrawAllKnobs();
+  }, { passive: false });
+
+  el.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const dy = knobState[i].lastY - e.touches[0].clientY;
+    knobState[i].lastY  = e.touches[0].clientY;
+    knobState[i].norm   = Math.max(0, Math.min(1, knobState[i].norm + dy / 130));
+    applyKnob(i);
+    redrawAllKnobs();
+  }, { passive: false });
+
+  el.addEventListener('touchend',    e => { knobState[i].active = false; redrawAllKnobs(); }, { passive: false });
+  el.addEventListener('touchcancel', e => { knobState[i].active = false; redrawAllKnobs(); }, { passive: false });
+
+  // Mouse (desktop testing)
   let dragging = false;
-  el.addEventListener('mousedown',  e => { dragging = true; knobState[i].lastY = e.clientY; knobState[i].active = true; redrawAllKnobs(); });
+  el.addEventListener('mousedown', e => {
+    dragging = true;
+    knobState[i].active = true;
+    knobState[i].lastY  = e.clientY;
+    redrawAllKnobs();
+  });
   window.addEventListener('mousemove', e => {
     if (!dragging) return;
     const dy = knobState[i].lastY - e.clientY;
-    knobState[i].lastY = e.clientY;
-    knobState[i].norm = Math.max(0, Math.min(1, knobState[i].norm + dy / 120));
+    knobState[i].lastY  = e.clientY;
+    knobState[i].norm   = Math.max(0, Math.min(1, knobState[i].norm + dy / 130));
     applyKnob(i);
     redrawAllKnobs();
   });
-  window.addEventListener('mouseup', () => { if(dragging){ dragging = false; knobState[i].active = false; redrawAllKnobs(); } });
+  window.addEventListener('mouseup', () => {
+    if (dragging) { dragging = false; knobState[i].active = false; redrawAllKnobs(); }
+  });
 });
 
 /* ═══════════════════════
@@ -459,21 +448,21 @@ function onOrientation(e) {
   state.tiltX = (e.gamma || 0) / 90;
   state.tiltY = Math.max(-1, Math.min(1, ((e.beta || 0) - 45) / 45));
 }
-document.addEventListener('touchstart', () => { if (!gyroReq) { gyroReq = true; startGyro(); } }, { passive: true });
+document.addEventListener('touchstart', () => {
+  if (!gyroReq) { gyroReq = true; startGyro(); }
+}, { passive: true });
 
 /* ═══════════════════════
-   TAP CANVAS
+   TAP RING
 ═══════════════════════ */
 ringCanvas.addEventListener('touchstart', e => {
-  // Don't fire if touch is in panel
   const panelTop = document.getElementById('panel').getBoundingClientRect().top;
   for (const t of e.changedTouches) {
     if (t.clientY >= panelTop) return;
-    const hue = getHue();
-    state.bursts.push({ x: t.clientX, y: t.clientY, hue, life: 1 });
+    state.bursts.push({ x: t.clientX, y: t.clientY, hue: state.colour, life: 1 });
     const el = document.createElement('div');
     el.className = 'burst';
-    el.style.cssText = `left:${t.clientX}px;top:${t.clientY}px;border-color:hsl(${hue},80%,55%)`;
+    el.style.cssText = `left:${t.clientX}px;top:${t.clientY}px;border-color:hsl(${state.colour},80%,55%)`;
     document.body.appendChild(el);
     el.addEventListener('animationend', () => el.remove());
   }
@@ -484,10 +473,10 @@ ringCanvas.addEventListener('touchstart', e => {
 ═══════════════════════ */
 document.getElementById('share-btn').addEventListener('click', () => {
   const p = new URLSearchParams({
-    h: Math.round(state.hue),
-    s: state.speed.toFixed(2),
-    m: state.style.toFixed(2),
-    t: state.trail.toFixed(2),
+    c: Math.round(state.colour),
+    ch: state.chase.toFixed(2),
+    s:  state.speed.toFixed(2),
+    sz: state.size.toFixed(2),
   });
   const url = `${location.origin}${location.pathname}?${p}`;
   if (navigator.share) {
@@ -501,13 +490,17 @@ document.getElementById('share-btn').addEventListener('click', () => {
   }
 });
 
-/* Load shared params from URL */
+// Load shared params from URL
 (function() {
   const p = new URLSearchParams(location.search);
-  if (p.has('h')) { const v=(+p.get('h')-0)/360; knobState[0].norm=Math.max(0,Math.min(1,v)); applyKnob(0); }
-  if (p.has('s')) { knobState[1].norm=+p.get('s'); applyKnob(1); }
-  if (p.has('m')) { knobState[2].norm=+p.get('m'); applyKnob(2); }
-  if (p.has('t')) { knobState[3].norm=+p.get('t'); applyKnob(3); }
+  const set = (idx, val, min, max) => {
+    knobState[idx].norm = Math.max(0, Math.min(1, (val - min) / (max - min)));
+    applyKnob(idx);
+  };
+  if (p.has('c'))  set(0, +p.get('c'),  0, 360);
+  if (p.has('ch')) set(1, +p.get('ch'), 0, 1);
+  if (p.has('s'))  set(2, +p.get('s'),  0, 1);
+  if (p.has('sz')) set(3, +p.get('sz'), 0, 1);
   redrawAllKnobs();
 })();
 </script>
