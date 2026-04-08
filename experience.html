@@ -217,7 +217,7 @@ setTimeout(resize, 100);
 function drawRing() {
   rctx.clearRect(0, 0, W, H);
 
-  const speedF  = 0.15 + state.speed * 2.0;
+  const speedF  = 0.3 + state.speed * 5.0;
   const sizeF   = 0.4  + state.size  * 1.4;
   const trailF  = 0.04 + state.chase * 0.96; // fraction of ring lit in chase
 
